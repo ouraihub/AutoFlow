@@ -1,7 +1,7 @@
 name: AutoFlow agent
 
 # Copy to .github/workflows/ in the project. Every task is designed first (docs/issue-N.md), then built
-# after you reply 确认. Reply 继续 to resume an interrupted run. Pin AutoFlow to a release tag or commit.
+# after you reply 确认. Reply 继续 to resume an interrupted run. Pin AutoFlow to a release commit SHA (tags can be moved).
 on:
   issues:
     types: [labeled]
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   autoflow:
-    uses: ouraihub/AutoFlow/.github/workflows/agent.yml@v0.2.0
+    uses: ouraihub/AutoFlow/.github/workflows/agent.yml@ef80af630a59518d33187e59f74652b7b1a5bf69 # v0.2.0
     with:
       model: ${{ vars.AI_MODEL }}
       setup: '' # e.g. pnpm install --frozen-lockfile
