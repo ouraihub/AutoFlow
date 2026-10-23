@@ -1,0 +1,213 @@
+name: AutoFlow agent
+
+# Reusable: called from a project's issues / issue_comment workflow (templates/autoflow-agent.yml).
+# develop runs omp with no GitHub write credentials; publish runs after every develop run (also failed,
+# cancelled or timed out), pushes the commits made so far to agent/issue-N and reports on the issue.
+# Progress is never lost: omp is told to commit after each section/task, uncommitted work is committed
+# by a safety-net step, and the next run resumes from the design document on the branch.
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Model id at the relays
+        type: string
+        required: true
+      setup:
+        description: Commands run in the repository before omp (install dependencies)
+        type: string
+        default: ''
+      checks:
+        description: Command omp must pass before committing development work
+        type: string
+        default: ''
+      protected_paths:
+        description: Comma-separated path prefixes the agent may not change
+        type: string
+        default: .github/
+      doc_path:
+        description: Design document path; {n} is the issue number
+        type: string
+        default: docs/issue-{n}.md
+      timeout:
+        description: Job time limit in minutes; omp stops 10 minutes earlier so work is committed
+        type: number
+        default: 120
+    secrets:
+      AI_KEYS:
+        description: Key pool, one "<https base url> <api key>" per line, tried in order
+        required: true
+      AUTOFLOW_TOKEN:
+        description: Fine-grained PAT (Contents + Pull requests write) to push agent branches and open PRs
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  develop:
+    name: Develop
+    # Only the repository owner can start or steer a run: labelling, or commenting on a labelled issue.
+    if: >-
+      github.event.issue.state == 'open' && (
+        (github.event_name == 'issues' && github.event.label.name == 'agent' && github.event.sender.login == github.repository_owner) ||
+        (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+         github.event.comment.author_association == 'OWNER' && contains(github.event.issue.labels.*.name, 'agent'))
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.timeout }}
+    concurrency:
+      group: autoflow-agent-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    outputs:
+      phase: ${{ steps.prepare.outputs.phase }}
+      doc_path: ${{ steps.prepare.outputs.doc_path }}
+      base_sha: ${{ steps.base.outputs.sha }}
+      exit_code: ${{ steps.omp.outputs.exit_code }}
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Resume the agent branch if it exists
+        id: branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/branches/agent/issue-$ISSUE_NUMBER" --silent 2>/dev/null; then
+            echo "ref=agent/issue-$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: repo
+          ref: ${{ steps.branch.outputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: autoflow
+          persist-credentials: false
+      - id: base
+        working-directory: repo
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Install omp
+        run: bun add -g @oh-my-pi/pi-coding-agent@18.12.6
+      - name: Project setup
+        if: inputs.setup != ''
+        working-directory: repo
+        env:
+          SETUP: ${{ inputs.setup }}
+        run: bash -c "$SETUP"
+      - name: Prepare task, design document and model config
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          WORKDIR: ${{ github.workspace }}/repo
+          OMP_AGENT_DIR: ${{ runner.temp }}/omp-agent
+          PROMPT_FILE: ${{ runner.temp }}/prompt.md
+          DOC_PATH_TEMPLATE: ${{ inputs.doc_path }}
+          CHECKS: ${{ inputs.checks }}
+          PROTECTED_PATHS: ${{ inputs.protected_paths }}
+          AI_KEYS: ${{ secrets.AI_KEYS }}
+          AI_MODEL: ${{ inputs.model }}
+        run: node autoflow/src/agent/prepare.ts
+      - name: Run omp
+        id: omp
+        working-directory: repo
+        env:
+          PI_CODING_AGENT_DIR: ${{ runner.temp }}/omp-agent
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          git config user.name "autoflow-agent"
+          git config user.email "autoflow-agent@users.noreply.github.com"
+          mkdir -p "$RUNNER_TEMP/artifact"
+          set +e
+          omp -p --no-session --approval-mode yolo --model "$OMP_MODEL" --max-time "$((TIMEOUT - 10))m" \
+            < "$RUNNER_TEMP/prompt.md" > "$RUNNER_TEMP/artifact/summary.md"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+      # Below runs even when the job fails, is cancelled or times out: whatever exists is kept.
+      - name: Commit work omp left uncommitted
+        if: always() && steps.prepare.outputs.phase != ''
+        working-directory: repo
+        env:
+          PHASE: ${{ steps.prepare.outputs.phase }}
+          DOC_PATH: ${{ steps.prepare.outputs.doc_path }}
+        run: |
+          git config user.name "autoflow-agent"
+          git config user.email "autoflow-agent@users.noreply.github.com"
+          if [ "$PHASE" = design ]; then git add -- "$DOC_PATH" 2>/dev/null || true; else git add -A; fi
+          git diff --cached --quiet || git commit -m "chore(agent): 保存 #$ISSUE_NUMBER 未提交的进度"
+      - name: Bundle commits
+        if: always() && steps.base.outputs.sha != ''
+        working-directory: repo
+        env:
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifact"
+          if [ "$(git rev-list --count "$BASE..HEAD")" -gt 0 ]; then
+            git bundle create "$RUNNER_TEMP/artifact/agent.bundle" "$BASE..HEAD"
+          fi
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: autoflow-agent
+          path: ${{ runner.temp }}/artifact/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish
+    needs: develop
+    if: always() && needs.develop.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        continue-on-error: true
+        with:
+          name: autoflow-agent
+          path: ${{ runner.temp }}/artifact
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: repo
+          fetch-depth: 0
+          token: ${{ secrets.AUTOFLOW_TOKEN }}
+      - name: Fetch the agent branch
+        working-directory: repo
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: git fetch --no-tags origin "agent/issue-$ISSUE_NUMBER" 2>/dev/null || true
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: autoflow
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+      - name: Push progress and report
+        working-directory: repo
+        env:
+          BOT_TOKEN: ${{ github.token }}
+          AUTOFLOW_TOKEN: ${{ secrets.AUTOFLOW_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PHASE: ${{ needs.develop.outputs.phase }}
+          DOC_PATH: ${{ needs.develop.outputs.doc_path }}
+          BASE_SHA: ${{ needs.develop.outputs.base_sha }}
+          EXIT_CODE: ${{ needs.develop.outputs.exit_code }}
+          PROTECTED_PATHS: ${{ inputs.protected_paths }}
+          ARTIFACT_DIR: ${{ runner.temp }}/artifact
+          SERVER_URL: ${{ github.server_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node ../autoflow/src/agent/publish.ts

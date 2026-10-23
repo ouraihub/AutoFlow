@@ -19,9 +19,8 @@ on:
         type: number
         default: 120000
     secrets:
-      AI_BASE_URL:
-        required: true
-      AI_API_KEY:
+      AI_KEYS:
+        description: Key pool, one "<https base url> <api key>" per line, tried in order
         required: true
       AUTOFLOW_TOKEN:
         description: Fine-grained PAT (Contents + Pull requests write) used to enable auto-merge
@@ -53,8 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_KEYS: ${{ secrets.AI_KEYS }}
           AI_MODEL: ${{ inputs.model }}
           PROTECTED_PATHS: ${{ inputs.protected_paths }}
           MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
