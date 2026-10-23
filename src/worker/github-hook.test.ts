@@ -54,17 +54,19 @@ test('a rejected AI review is routed to the task issue named in the PR body', ()
   assert.equal(noticeFor('issue_comment', approved, demo), null)
 })
 
-test('an agent failure comment on the task issue notifies that issue', () => {
-  const notice = noticeFor(
-    'issue_comment',
-    {
-      action: 'created',
-      issue: { number: 2 },
-      comment: { body: 'AutoFlow agent: failed.\n\n- checks did not pass', html_url: 'u' },
-    },
-    demo,
+test('agent reports on the task issue are forwarded to the chat with a headline', () => {
+  const report = (body: string) =>
+    noticeFor('issue_comment', { action: 'created', issue: { number: 2 }, comment: { body, html_url: 'u' } }, demo)
+  assert.deepEqual(report('AutoFlow agent: design ready.\n\n设计文档：https://d\n\n回复「确认」开始开发'), {
+    to: { issue: 2 },
+    text: 'demo#2 设计完成，等你确认\n设计文档：https://d\n\n回复「确认」开始开发',
+  })
+  assert.match(
+    report('AutoFlow agent: paused.\n\n已保存进度（任务 2/5）')?.text ?? '',
+    /^demo#2 进度已保存\n已保存进度/,
   )
-  assert.deepEqual(notice, { to: { issue: 2 }, text: 'demo#2 开发失败：\n- checks did not pass\nu' })
+  assert.match(report('AutoFlow agent: failed.\n\n- omp 退出码 1')?.text ?? '', /^demo#2 运行失败\n- omp/)
+  assert.equal(report('普通评论'), null)
 })
 
 test('only announced workflows broadcast, and only on success', () => {

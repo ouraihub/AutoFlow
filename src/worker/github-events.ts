@@ -5,8 +5,15 @@ import type { RepoTarget } from './config.ts'
 const AGENT_BRANCH = /^agent\/issue-(\d+)$/
 /** First line of the review workflow's PR comment; see src/review/verdict.ts formatVerdict. */
 const REVIEW_REJECTED = /^AI review \([^)]*\): changes requested\./
-/** First line the agent workflow writes on the task issue when it cannot finish. */
-const AGENT_FAILED = /^AutoFlow agent: failed\./
+/** First line of an agent workflow report on the task issue; see src/agent/publish.ts. */
+const AGENT_REPORT = /^AutoFlow agent: (design ready|paused|updated|failed)\.\s*\n?([\s\S]*)$/
+const AGENT_HEADLINE: Record<string, string> = {
+  'design ready': '设计完成，等你确认',
+  paused: '进度已保存',
+  updated: 'PR 已更新',
+  failed: '运行失败',
+}
+const MAX_REPORT_CHARS = 1800
 const CLOSES = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) #(\d+)\b/i
 const MAX_POINTS = 5
 
@@ -51,8 +58,14 @@ export function noticeFor(event: string, payload: unknown, target: RepoTarget): 
       if (!issue) return null
       return { to: { issue: Number(issue) }, text: [`${target.alias}#${issue} 审查打回：`, ...points, url].join('\n') }
     }
-    if (AGENT_FAILED.test(body)) {
-      return { to: { issue: number }, text: [`${target.alias}#${number} 开发失败：`, ...points, url].join('\n') }
+    const report = AGENT_REPORT.exec(body)
+    if (report?.[1]) {
+      // The report is written for the chat already (summary, links, what to reply), so it is forwarded.
+      const details = (report[2] ?? '').trim().slice(0, MAX_REPORT_CHARS)
+      return {
+        to: { issue: number },
+        text: [`${target.alias}#${number} ${AGENT_HEADLINE[report[1]]}`, details].filter(Boolean).join('\n'),
+      }
     }
     return null
   }
