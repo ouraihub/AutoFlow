@@ -20,7 +20,11 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // Admin UI alias; declared here because the shadcn-svelte CLI reads only the root tsconfig.
+    "paths": { "$lib": ["./ui/src/lib"], "$lib/*": ["./ui/src/lib/*"] }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Checked by src/worker/tsconfig.json against the Workers runtime types instead of Node's.
+  "exclude": ["src/worker/index.ts", "src/worker/worker-configuration.d.ts"]
 }

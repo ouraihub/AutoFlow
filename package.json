@@ -7,15 +7,36 @@
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit && node node_modules/@typescript/native/bin/tsc --noEmit -p src/worker && svelte-check --tsconfig ui/tsconfig.json --fail-on-warnings",
+    "ui:dev": "vite",
+    "ui:build": "vite build",
+    "worker:types": "wrangler types src/worker/worker-configuration.d.ts",
+    "worker:dev": "pnpm run ui:build && wrangler dev",
+    "worker:deploy": "pnpm run ui:build && wrangler deploy",
     "test": "node --test \"src/**/*.test.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci": "pnpm run typecheck && pnpm run test && pnpm run format:check"
+    "ci": "pnpm run typecheck && pnpm run test && pnpm run ui:build && pnpm run format:check"
   },
   "devDependencies": {
+    "@internationalized/date": "3.12.4",
+    "@lucide/svelte": "1.61.0",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.3",
     "@types/node": "26.6.5",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "bits-ui": "2.20.0",
+    "clsx": "2.1.1",
     "prettier": "3.9.10",
-    "typescript": "7.0.2"
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.7",
+    "tailwind-merge": "3.7.0",
+    "tailwind-variants": "3.3.1",
+    "tailwindcss": "4.3.3",
+    "tw-animate-css": "1.4.0",
+    "typescript": "6.0.3",
+    "uqr": "0.1.3",
+    "vite": "8.3.5",
+    "wrangler": "4.151.3"
   }
 }

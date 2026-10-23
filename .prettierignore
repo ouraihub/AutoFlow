@@ -1,0 +1,4 @@
+ui/dist/
+src/worker/worker-configuration.d.ts
+pnpm-lock.yaml
+.tmp/
