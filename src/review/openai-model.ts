@@ -18,7 +18,9 @@ export class OpenAiCompatibleModel implements ModelClient {
     this.name = options.model
     this.#apiKey = options.apiKey
     this.#timeoutMs = options.timeoutMs ?? 300_000
-    this.#fetch = options.fetch ?? fetch
+    const fetcher = options.fetch ?? fetch
+    // Wrapped: calling the global fetch as `this.#fetch(...)` throws "Illegal invocation" in Workers.
+    this.#fetch = (input, init) => fetcher(input, init)
   }
 
   async complete(messages: readonly ChatMessage[]): Promise<string> {

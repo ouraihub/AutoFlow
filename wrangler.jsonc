@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "autoflow",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-19",
+  "observability": { "enabled": true },
+  // The /connect UI (ui/, built by Vite). Only API and webhook paths reach the Worker code.
+  "assets": {
+    "directory": "ui/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/hook/*"],
+  },
+  // Feishu apps created by QR scan have no event callback, so new messages are pulled every minute.
+  "triggers": { "crons": ["* * * * *"] },
+  "kv_namespaces": [{ "binding": "AUTOFLOW", "id": "REPLACE_ON_FIRST_DEPLOY" }],
+  "vars": {
+    // Alias → repository. Notifications for workflow names in `announce` go to every bound chat.
+    "REPOS": "{\"demo\":{\"repo\":\"ouraihub/autoflow-demo\",\"announce\":[]}}",
+    "DEFAULT_REPO": "demo",
+  },
+  // Secrets (wrangler secret put): GITHUB_TOKEN, SECRET_KEY, ADMIN_TOKEN, GITHUB_WEBHOOK_SECRET.
+  // Channel credentials are not secrets here: they come from the /connect page and are sealed in KV.
+}

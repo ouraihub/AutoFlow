@@ -1,0 +1,10 @@
+{
+  // Worker code is checked against the Workers runtime types, so Node-only APIs fail here.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "lib": ["es2024"]
+  },
+  "include": ["./**/*.ts", "../core/**/*.ts"],
+  "exclude": ["./**/*.test.ts", "../core/**/*.test.ts"]
+}
