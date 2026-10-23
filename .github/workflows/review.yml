@@ -1,0 +1,68 @@
+name: AutoFlow review
+
+# Reusable: called from a project's pull_request_target workflow (templates/autoflow-review.yml).
+# The review code is checked out from this repository at the exact commit the caller pinned; PR code
+# is never checked out or executed, the diff is only read as text.
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Model id at the relay
+        type: string
+        required: true
+      protected_paths:
+        description: Comma-separated path prefixes that get the stricter review
+        type: string
+        default: .github/
+      max_diff_chars:
+        description: Larger diffs fail closed
+        type: number
+        default: 120000
+    secrets:
+      AI_BASE_URL:
+        required: true
+      AI_API_KEY:
+        required: true
+      AUTOFLOW_TOKEN:
+        description: Fine-grained PAT (Contents + Pull requests write) used to enable auto-merge
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: AI review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # A skipped job counts as passed, so fork PRs fail here instead of being skipped.
+      - name: Only same-repository pull requests are reviewed
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: exit 1
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+      - name: Review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_MODEL: ${{ inputs.model }}
+          PROTECTED_PATHS: ${{ inputs.protected_paths }}
+          MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+        run: node src/review/main.ts
+      # A PAT, not GITHUB_TOKEN: a GITHUB_TOKEN merge would not trigger the project's default-branch
+      # workflows. Branch protection still waits for every required check.
+      - name: Merge once every required check passes
+        env:
+          GH_TOKEN: ${{ secrets.AUTOFLOW_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --auto --merge

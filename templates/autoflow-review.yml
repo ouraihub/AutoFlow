@@ -1,0 +1,25 @@
+name: AI review
+
+# Copy to .github/workflows/ in the project. pull_request_target runs this file from the default
+# branch, so a PR cannot change its own review. Pin AutoFlow to a release tag or commit.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: autoflow-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  autoflow:
+    uses: ouraihub/AutoFlow/.github/workflows/review.yml@v0.1.0
+    with:
+      model: ${{ vars.AI_MODEL }}
+    secrets:
+      AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      AUTOFLOW_TOKEN: ${{ secrets.AUTOFLOW_TOKEN }}
