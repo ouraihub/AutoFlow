@@ -21,6 +21,8 @@ export type Config = {
   secretKey: string
   /** Password for the /connect page. */
   adminToken: string
+  /** Shared with the repositories' webhooks; null keeps /hook/github closed. */
+  githubWebhookSecret: string | null
 }
 
 type Vars = Readonly<Record<string, string | undefined>>
@@ -35,7 +37,18 @@ export function parseConfig(vars: Vars): Config {
   if (secretKey.length < MIN_SECRET_CHARS || adminToken.length < MIN_SECRET_CHARS) {
     throw new AutoFlowError('config', `SECRET_KEY and ADMIN_TOKEN need at least ${MIN_SECRET_CHARS} characters`)
   }
-  return { repos, defaultAlias, githubToken: requireEnv(vars, 'GITHUB_TOKEN'), secretKey, adminToken }
+  const webhookSecret = vars['GITHUB_WEBHOOK_SECRET']?.trim() || null
+  if (webhookSecret !== null && webhookSecret.length < MIN_SECRET_CHARS) {
+    throw new AutoFlowError('config', `GITHUB_WEBHOOK_SECRET needs at least ${MIN_SECRET_CHARS} characters`)
+  }
+  return {
+    repos,
+    defaultAlias,
+    githubToken: requireEnv(vars, 'GITHUB_TOKEN'),
+    secretKey,
+    adminToken,
+    githubWebhookSecret: webhookSecret,
+  }
 }
 
 function parseRepos(raw: string): Map<string, RepoTarget> {

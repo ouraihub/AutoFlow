@@ -1,3 +1,4 @@
+import { readPath } from '../core/guard.ts'
 import type { ChannelName, KeyValueStore } from './ports.ts'
 
 export type ChatRef = { channel: ChannelName; chatId: string }
@@ -23,5 +24,13 @@ export class ConversationStore {
   /** Remembers which chat asked for `repo#number`, so GitHub events about it go back there. */
   linkIssue(repo: string, number: number, chat: ChatRef): Promise<void> {
     return this.#kv.put(`issue:${repo}#${number}`, JSON.stringify(chat), { expirationTtl: ISSUE_TTL_SECONDS })
+  }
+
+  async chatForIssue(repo: string, number: number): Promise<ChatRef | null> {
+    const stored: unknown = JSON.parse((await this.#kv.get(`issue:${repo}#${number}`)) ?? 'null')
+    const channel = readPath(stored, ['channel'])
+    const chatId = readPath(stored, ['chatId'])
+    if ((channel !== 'telegram' && channel !== 'feishu') || typeof chatId !== 'string') return null
+    return { channel, chatId }
   }
 }

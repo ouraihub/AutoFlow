@@ -9,7 +9,10 @@ import { ConversationStore } from './conversations.ts'
 import { Sealer } from './crypto.ts'
 import { FeishuPoller } from './feishu-poller.ts'
 import { FeishuClient, FeishuRegistration } from './feishu.ts'
+import { GITHUB_HOOK_PATH, GitHubHook } from './github-hook.ts'
 import { GitHubIssues } from './github-issues.ts'
+import { Notifier } from './notifier.ts'
+import type { ChannelName, ChatSender } from './ports.ts'
 import { TaskRouter } from './router.ts'
 import { TelegramHook } from './telegram-hook.ts'
 import { TelegramClient } from './telegram.ts'
@@ -19,6 +22,7 @@ interface Secrets {
   GITHUB_TOKEN?: string
   SECRET_KEY?: string
   ADMIN_TOKEN?: string
+  GITHUB_WEBHOOK_SECRET?: string
 }
 type WorkerEnv = Env & Secrets
 
@@ -38,6 +42,18 @@ function router(app: App): TaskRouter {
     config: app.config,
     log: app.log,
   })
+}
+
+/** A sender for a connected channel; the same clients the hooks and cron use. */
+function sender(app: App): (channel: ChannelName) => Promise<ChatSender | null> {
+  return async (channel) => {
+    if (channel === 'telegram') {
+      const telegram = await app.connections.telegram()
+      return telegram ? new TelegramClient(telegram.botToken) : null
+    }
+    const feishu = await app.connections.feishu()
+    return feishu ? new FeishuClient(feishu, app.env.AUTOFLOW) : null
+  }
 }
 
 export default {
@@ -80,6 +96,25 @@ export default {
       if (result.kind === 'message')
         ctx.waitUntil(router(ready).handle(new TelegramClient(result.connection.botToken), result.message))
       // Telegram retries anything but 2xx, so every verified update is acknowledged at once.
+      return new Response('ok')
+    }
+
+    if (path === GITHUB_HOOK_PATH && request.method === 'POST') {
+      if (!ready.config.githubWebhookSecret) return new Response('not found', { status: 404 })
+      const result = await new GitHubHook(ready.config.githubWebhookSecret, ready.config.repos).receive(request)
+      if (result.kind === 'rejected') {
+        log.warn('github webhook signature mismatch')
+        return new Response('unauthorized', { status: 401 })
+      }
+      if (result.kind === 'notice') {
+        const notifier = new Notifier({
+          conversations: new ConversationStore(env.AUTOFLOW),
+          connections: ready.connections,
+          senders: sender(ready),
+          log,
+        })
+        ctx.waitUntil(notifier.deliver(result.repo, result.notice))
+      }
       return new Response('ok')
     }
 
