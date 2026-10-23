@@ -1,7 +1,7 @@
 name: AI review
 
 # Copy to .github/workflows/ in the project. pull_request_target runs this file from the default
-# branch, so a PR cannot change its own review. Pin AutoFlow to a release tag or commit.
+# branch, so a PR cannot change its own review. Pin AutoFlow to a release commit SHA (tags can be moved).
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   autoflow:
-    uses: ouraihub/AutoFlow/.github/workflows/review.yml@v0.2.0
+    uses: ouraihub/AutoFlow/.github/workflows/review.yml@ef80af630a59518d33187e59f74652b7b1a5bf69 # v0.2.0
     with:
       model: ${{ vars.AI_MODEL }}
     secrets:
