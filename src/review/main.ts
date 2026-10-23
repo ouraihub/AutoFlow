@@ -1,7 +1,9 @@
 // Composition root for the review workflow: reads env, wires adapters, maps the verdict to an exit code.
 // Exit 0 = approved, 1 = changes requested or failure (the required check fails either way).
 import { AutoFlowError, requireEnv } from '../core/errors.ts'
+import { parseKeyPool } from '../core/key-pool.ts'
 import { JsonLogger } from '../core/log.ts'
+import { parseProtectedPaths } from '../core/protected-paths.ts'
 import { GhPullRequests } from './gh-pull-requests.ts'
 import { OpenAiCompatibleModel } from './openai-model.ts'
 import { Reviewer } from './reviewer.ts'
@@ -21,20 +23,13 @@ try {
   const reviewer = new Reviewer(
     {
       model: new OpenAiCompatibleModel({
-        baseUrl: requireEnv(env, 'AI_BASE_URL'),
-        apiKey: requireEnv(env, 'AI_API_KEY'),
+        keys: parseKeyPool(requireEnv(env, 'AI_KEYS')),
         model: requireEnv(env, 'AI_MODEL'),
       }),
       host: new GhPullRequests(repo),
       log: log.child({ repo }),
     },
-    {
-      protectedPaths: (env['PROTECTED_PATHS'] || '.github/')
-        .split(',')
-        .map((prefix) => prefix.trim())
-        .filter(Boolean),
-      maxDiffChars,
-    },
+    { protectedPaths: parseProtectedPaths(env['PROTECTED_PATHS']), maxDiffChars },
   )
   const { verdict } = await reviewer.review(number)
   process.exitCode = verdict === 'approve' ? 0 : 1

@@ -1,4 +1,5 @@
 import type { Logger } from '../core/log.ts'
+import { touchedProtected } from '../core/protected-paths.ts'
 import type { ModelClient, PullRequestHost } from './ports.ts'
 import { buildPrompt } from './prompt.ts'
 import { formatVerdict, parseVerdict, type Verdict } from './verdict.ts'
@@ -31,7 +32,7 @@ export class Reviewer {
   async review(number: number): Promise<Verdict> {
     const log = this.#log.child({ pr: number })
     const pr = await this.#host.pullRequest(number)
-    const touched = pr.files.filter((path) => this.#options.protectedPaths.some((prefix) => path.startsWith(prefix)))
+    const touched = touchedProtected(pr.files, this.#options.protectedPaths)
     log.info('review started', { files: pr.files.length, diffChars: pr.diff.length, protected: touched })
 
     let verdict: Verdict
