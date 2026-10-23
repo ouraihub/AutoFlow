@@ -1,0 +1,12 @@
+# Contents of the AI_KEYS secret (Settings → Secrets and variables → Actions). Not a file in the repo.
+# One "<https base url> <api key>" per line, separated by a space. Tried top to bottom: when a key is
+# refused or out of quota (HTTP 401/403/429), the next line is used. The model id comes from the
+# AI_MODEL variable and must exist at every relay listed here.
+# The base url may end with /v1 or not. Blank lines and lines starting with # are ignored.
+# Set it with: gh secret set AI_KEYS -R <owner>/<repo> < my-keys.txt   (keep my-keys.txt out of git)
+
+https://relay-a.example.com/v1 sk-aaaaaaaaaaaaaaaaaaaaaaaa
+https://relay-b.example.com sk-bbbbbbbbbbbbbbbbbbbbbbbb
+
+# Same relay, second key as a backup
+https://relay-a.example.com/v1 sk-cccccccccccccccccccccccc

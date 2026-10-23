@@ -15,7 +15,7 @@ Design: [docs/01-方案设计.md](docs/01-方案设计.md).
 ## Add AI review to a project
 
 1. Copy [templates/autoflow-review.yml](templates/autoflow-review.yml) to `.github/workflows/`.
-2. Secrets: `AI_KEYS` (one `<https base url> <api key>` per line; the next key is used when one is refused or out of quota), `AUTOFLOW_TOKEN` (fine-grained PAT for that repo: Contents and Pull requests read/write). Variable: `AI_MODEL`.
+2. Secrets: `AI_KEYS` (one `<https base url> <api key>` per line; the next key is used when one is refused or out of quota; see [templates/AI_KEYS.example](templates/AI_KEYS.example)), `AUTOFLOW_TOKEN` (fine-grained PAT for that repo: Contents and Pull requests read/write). Variable: `AI_MODEL`.
 3. Settings: allow auto-merge, delete branches after merge.
 4. Branch protection on the default branch: require PRs, add `autoflow / AI review` plus the project's own checks as required.
 
