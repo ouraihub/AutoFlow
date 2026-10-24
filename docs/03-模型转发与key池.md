@@ -69,16 +69,28 @@ sequenceDiagram
 - 「测试」：用这条配置发一个最小请求，显示能否连通、耗时和中转站返回的错误；
 - 「恢复」：清除"已用完"标记；
 - 顶部显示今天的请求数和切换次数，数据来自 KV 计数。
+- 「访问密钥」区：新建、列出、吊销本地使用的密钥（见 §6）。
 
 页面放在现有的管理登录后面（`ADMIN_TOKEN`），沿用现有的同源校验和 HttpOnly cookie。
 
-## 6. 转发令牌
+## 6. 访问凭据
+
+转发地址 `/relay/v1/*` 接受两种凭据，每种都只能使用它绑定的那一个池。
+
+**GitHub Actions：转发令牌**
 
 - **申请**：Actions 用 GitHub OIDC 申请令牌（job 需要 `id-token: write` 权限），`audience` 设为 Worker 地址。Worker 用 GitHub 的 JWKS 验签，并检查：`iss` 是 GitHub、`aud` 是本 Worker、`repository` 在 `REPOS` 里、`repository_owner` 是 `ouraihub`。
 - **签发**：验证通过后，Worker 签发 `池名 + 仓库 + 过期时间` 的 HMAC 令牌，有效期 2 小时，覆盖一次 agent 运行的上限。
-- **转发**：`/relay/v1/*` 只认这个令牌，并且只能用令牌里写的那个池。
+- omp 能读到这个令牌。最坏的情况是：它在 2 小时内被拿去花你的额度，但真实 key 拿不到；令牌过期后就没用了。
 
-omp 能读到这个转发令牌。最坏的情况是：它在 2 小时内被拿去花你的额度，但真实 key 拿不到；令牌过期后就没用了。
+**本地 omp 和其他客户端：访问密钥**
+
+- 在页面上新建，选好绑定的池，写一个备注（如"台式机 omp"）。密钥格式为 `afk_` 加随机串，只在创建时显示一次；Worker 只保存它的 SHA-256。
+- 可以随时吊销，吊销后立即失效。页面上显示每个密钥的最后使用时间和今天的请求数。
+- 本地 omp 在 `~/.omp/agent/models.yml` 里加一个 provider，`baseUrl` 指向 `https://<worker>/relay/v1`，`apiKey` 填访问密钥，`api` 按池的协议选择。页面上直接显示这段配置，复制就能用。
+- 任何 OpenAI 或 Anthropic 兼容的客户端都可以这样接入，比如 AutoNote 的 AI 设置、Cherry Studio。
+
+本地和 Actions 共用一个池时，额度和"已用完"状态也共用：本地用完的 key，Actions 也会跳过。
 
 ## 7. Actions 侧改动
 
