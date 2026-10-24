@@ -1,6 +1,6 @@
 import { AutoFlowError } from '../core/errors.ts'
 import { readPath } from '../core/guard.ts'
-import type { CreatedIssue, IssueState, IssueTracker } from './ports.ts'
+import type { CreatedIssue, IssueState, IssueTracker, TaskSnapshot } from './ports.ts'
 
 const API = 'https://api.github.com'
 const ERROR_BODY_CHARS = 300
@@ -44,6 +44,37 @@ export class GitHubIssues implements IssueTracker {
     if (typeof url !== 'string')
       throw new AutoFlowError('upstream', 'GitHub returned a comment without url', { context: { repo, number } })
     return { url }
+  }
+
+  async recentTasks(repo: string, label: string, limit: number): Promise<TaskSnapshot[]> {
+    const query = new URLSearchParams({ labels: label, state: 'all', sort: 'updated', per_page: String(limit) })
+    const list = await this.#request('GET', `/repos/${repo}/issues?${query}`, null)
+    if (!Array.isArray(list))
+      throw new AutoFlowError('upstream', 'GitHub returned a non-list for issues', { context: { repo } })
+    const issues = list.filter((issue: unknown) => readPath(issue, ['pull_request']) === undefined)
+    return Promise.all(
+      issues.map(async (issue: unknown): Promise<TaskSnapshot> => {
+        const number = readPath(issue, ['number'])
+        const title = readPath(issue, ['title'])
+        if (typeof number !== 'number' || typeof title !== 'string') {
+          throw new AutoFlowError('upstream', 'GitHub returned an issue without number or title', { context: { repo } })
+        }
+        const labels = readPath(issue, ['labels'])
+        // ponytail: first 100 comments only; a task with more shows an older status until paging is added.
+        const comments = await this.#request('GET', `/repos/${repo}/issues/${number}/comments?per_page=100`, null)
+        return {
+          number,
+          title,
+          open: readPath(issue, ['state']) === 'open',
+          labels: Array.isArray(labels)
+            ? labels.map((item: unknown) => readPath(item, ['name'])).filter((name) => typeof name === 'string')
+            : [],
+          comments: Array.isArray(comments)
+            ? comments.map((item: unknown) => readPath(item, ['body'])).filter((body) => typeof body === 'string')
+            : [],
+        }
+      }),
+    )
   }
 
   async #request(

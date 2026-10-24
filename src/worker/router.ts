@@ -4,15 +4,19 @@ import { parseCommand } from './commands.ts'
 import type { Config, RepoTarget } from './config.ts'
 import type { ConversationStore } from './conversations.ts'
 import type { ChatSender, InboundMessage, IssueTracker } from './ports.ts'
+import { formatStatus } from './status.ts'
 
 export const AGENT_LABEL = 'agent'
 const MAX_TITLE = 80
+/** Recent tasks shown by /status; enough to fit one phone screen. */
+const STATUS_TASKS = 10
 
 const HELP_TEXT = [
   'AutoFlow 用法：',
   '直接发送需求 → 在默认仓库建任务',
   '@<别名> 需求 → 在指定仓库建任务',
   '#12 补充 或 <别名>#12 补充 → 给任务追加说明（也可以直接回复 bot 的消息）',
+  '/status 或 /status <别名> → 查看最近需求的进度',
   '/use <别名> → 设置本会话的默认仓库',
   '/repos → 列出可用仓库',
 ].join('\n')
@@ -67,6 +71,11 @@ export class TaskRouter {
         return HELP_TEXT
       case 'repos':
         return this.#repoList()
+      case 'status': {
+        const target = await this.#target(chat, command.alias)
+        if (!target) return `没有仓库别名 ${command.alias ?? ''}。\n${this.#repoList()}`
+        return formatStatus(target.alias, await this.#issues.recentTasks(target.repo, AGENT_LABEL, STATUS_TASKS))
+      }
       case 'use': {
         const target = this.#config.repos.get(command.alias)
         if (!target) return `没有仓库别名 ${command.alias}。\n${this.#repoList()}`
