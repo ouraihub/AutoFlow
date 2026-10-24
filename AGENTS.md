@@ -9,7 +9,8 @@ AutoFlow is developed by AI agents. These rules apply to every change; the revie
 
 ## 2. Dependencies
 
-- Latest stable release only (no beta, rc, next, canary), pinned to an exact version.
+- Latest stable release only (no beta, rc, next, canary), pinned to an exact version in `package.json` and GitHub Actions `uses:`.
+- Exception: the agent runtime (omp) is installed at `@latest` on every run, matching how it is used locally; its version is printed in the log.
 - Add a dependency only when a few lines of code cannot do the job; say why in the PR.
 
 ## 3. TypeScript
