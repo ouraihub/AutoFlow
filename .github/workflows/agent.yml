@@ -96,8 +96,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: 1.4.4
-      - name: Install omp
-        run: bun add -g @oh-my-pi/pi-coding-agent@18.12.6
+      - name: Install omp (latest, like a local install that is updated often)
+        run: bun add -g @oh-my-pi/pi-coding-agent@latest && omp --version
       - name: Project setup
         if: inputs.setup != ''
         working-directory: repo
