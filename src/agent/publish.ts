@@ -11,7 +11,7 @@ import { AutoFlowError, requireEnv } from '../core/errors.ts'
 import { JsonLogger } from '../core/log.ts'
 import { parseProtectedPaths } from '../core/protected-paths.ts'
 import { forbiddenChanges, progress } from './changes.ts'
-import { DEVELOP_LABEL, type Phase } from './phase.ts'
+import { DEVELOP_LABEL, type Phase } from '../core/phase.ts'
 
 const run = promisify(execFile)
 const env = process.env

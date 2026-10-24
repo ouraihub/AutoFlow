@@ -1,4 +1,4 @@
-import type { Phase } from './phase.ts'
+import type { Phase } from '../core/phase.ts'
 
 export type TaskComment = { author: string; body: string }
 export type Task = { number: number; title: string; body: string; comments: readonly TaskComment[] }

@@ -11,7 +11,7 @@ import { parseKeyPool } from '../core/key-pool.ts'
 import { JsonLogger } from '../core/log.ts'
 import { parseProtectedPaths } from '../core/protected-paths.ts'
 import { ompSetup } from './omp-config.ts'
-import { DEVELOP_LABEL, decidePhase } from './phase.ts'
+import { DEVELOP_LABEL, decidePhase } from '../core/phase.ts'
 import { agentPrompt, type TaskComment } from './prompt.ts'
 
 const run = promisify(execFile)
