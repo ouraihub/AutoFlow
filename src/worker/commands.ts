@@ -4,6 +4,8 @@ export type Command =
   | { kind: 'empty' }
   | { kind: 'help' }
   | { kind: 'repos' }
+  /** Progress of recent tasks; `alias` null = the chat's default repository. */
+  | { kind: 'status'; alias: string | null }
   | { kind: 'use'; alias: string }
   /** New task; `alias` null = the chat's default repository. */
   | { kind: 'task'; alias: string | null; text: string }
@@ -12,6 +14,7 @@ export type Command =
 
 const HELP = /^\/(?:help|start)(?:@\S+)?$/i
 const REPOS = /^\/repos(?:@\S+)?$/i
+const STATUS = /^\/status(?:@\S+)?(?:\s+(\S+))?$/i
 const USE = /^\/use(?:@\S+)?\s+(\S+)$/i
 const FOLLOWUP = new RegExp(`^(?:(${ALIAS_PATTERN}))?#(\\d+)\\s+([\\s\\S]+)$`, 'i')
 const TARGETED = new RegExp(`^@(${ALIAS_PATTERN})\\s+([\\s\\S]+)$`, 'i')
@@ -23,6 +26,8 @@ export function parseCommand(input: string, replyTo: string | null): Command {
   if (!text) return { kind: 'empty' }
   if (HELP.test(text)) return { kind: 'help' }
   if (REPOS.test(text)) return { kind: 'repos' }
+  const status = STATUS.exec(text)
+  if (status) return { kind: 'status', alias: status[1]?.toLowerCase() ?? null }
 
   const use = USE.exec(text)
   if (use?.[1]) return { kind: 'use', alias: use[1].toLowerCase() }

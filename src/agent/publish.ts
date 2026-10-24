@@ -11,7 +11,7 @@ import { AutoFlowError, requireEnv } from '../core/errors.ts'
 import { JsonLogger } from '../core/log.ts'
 import { parseProtectedPaths } from '../core/protected-paths.ts'
 import { forbiddenChanges, progress } from './changes.ts'
-import { DEVELOP_LABEL, type Phase } from './phase.ts'
+import { DEVELOP_LABEL, type Phase } from '../core/phase.ts'
 
 const run = promisify(execFile)
 const env = process.env
@@ -38,7 +38,7 @@ const runUrl = requireEnv(env, 'RUN_URL')
 const botToken = requireEnv(env, 'BOT_TOKEN')
 
 async function comment(
-  marker: 'design ready' | 'paused' | 'updated' | 'failed',
+  marker: 'design ready' | 'paused' | 'opened' | 'updated' | 'failed',
   lines: readonly string[],
 ): Promise<void> {
   await gh(
@@ -197,7 +197,7 @@ try {
     await comment('updated', [`已更新 PR：${existing}`, '', summary])
   } else {
     const title = await gh(botToken, 'issue', 'view', number, '-R', repo, '--json', 'title', '--jq', '.title')
-    await gh(
+    const prUrl = await gh(
       autoflowToken,
       'pr',
       'create',
@@ -210,6 +210,8 @@ try {
       '--body',
       [summary, '', `设计文档：${docUrl}`, '', `Closes #${number}`].join('\n'),
     )
+    // Chat already hears about the PR from pull_request.opened; this line is the issue's own record (/status).
+    await comment('opened', [`已开 PR：${prUrl}`])
   }
 } catch (error) {
   log.error('agent publish failed', { error })

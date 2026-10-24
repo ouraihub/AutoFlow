@@ -1,5 +1,5 @@
 import { touchedProtected } from '../core/protected-paths.ts'
-import type { Phase } from './phase.ts'
+import type { Phase } from '../core/phase.ts'
 
 /**
  * Files an agent run may not have changed. Enforced on the pushed commits, not left to the prompt:

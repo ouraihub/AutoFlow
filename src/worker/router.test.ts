@@ -4,7 +4,7 @@ import { AutoFlowError } from '../core/errors.ts'
 import { JsonLogger } from '../core/log.ts'
 import { ConversationStore } from './conversations.ts'
 import { MemoryKv } from './memory-kv.test-support.ts'
-import type { ChatSender, CreatedIssue, IssueState, IssueTracker } from './ports.ts'
+import type { ChatSender, CreatedIssue, IssueState, IssueTracker, TaskSnapshot } from './ports.ts'
 import { TaskRouter } from './router.ts'
 
 class FakeIssues implements IssueTracker {
@@ -26,6 +26,11 @@ class FakeIssues implements IssueTracker {
   async comment(repo: string, number: number, body: string): Promise<{ url: string }> {
     this.comments.push({ repo, number, body })
     return { url: `https://github.com/${repo}/issues/${number}#c` }
+  }
+  readonly listed: { repo: string; label: string }[] = []
+  async recentTasks(repo: string, label: string): Promise<TaskSnapshot[]> {
+    this.listed.push({ repo, label })
+    return [{ number: 4, title: '改文案', open: true, labels: ['agent'], comments: [] }]
   }
 }
 
@@ -73,6 +78,18 @@ test('/use changes the chat default; @alias overrides it once', async () => {
     issues.created.map((issue) => issue.repo),
     ['o/app', 'o/demo'],
   )
+})
+
+test('/status lists tasks of the chat default repo; /status <alias> picks another', async () => {
+  const { issues, router, chat } = setup()
+  await router.handle(chat, msg('/use app'))
+  await router.handle(chat, msg('/status'))
+  await router.handle(chat, msg('/status demo'))
+  assert.deepEqual(issues.listed, [
+    { repo: 'o/app', label: 'agent' },
+    { repo: 'o/demo', label: 'agent' },
+  ])
+  assert.equal(chat.sent[1], 'app 的需求：\napp#4 设计中 · 改文案')
 })
 
 test('a follow-up comments on the issue', async () => {
